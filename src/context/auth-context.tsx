@@ -2,7 +2,8 @@ import * as SecureStore from 'expo-secure-store';
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { Platform } from 'react-native';
 
-const API_URL = 'https://login-p26w.onrender.com/fatec/login/v1';
+import { login as loginApi, register } from '@/integration/auth-cookie-integration';
+
 const COOKIE_KEY = 'batcave.auth-cookie';
 
 type Credentials = {
@@ -46,35 +47,6 @@ async function removeStoredSession() {
   await SecureStore.deleteItemAsync(COOKIE_KEY);
 }
 
-function getCookie(response: Response) {
-  const setCookie = response.headers.get('set-cookie');
-  return setCookie?.match(/^([^=;]+=[^;]+)/)?.[1] ?? null;
-}
-
-async function readError(response: Response) {
-  const body = await response.text();
-  if (!body) return `Não foi possível concluir a operação (${response.status}).`;
-
-  try {
-    const parsed = JSON.parse(body) as { message?: string; error?: string };
-    return parsed.message ?? parsed.error ?? body;
-  } catch {
-    return body;
-  }
-}
-
-async function post(path: string, payload: object) {
-  const response = await fetch(`${API_URL}/${path}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
-    body: JSON.stringify(payload),
-  });
-
-  if (!response.ok) throw new Error(await readError(response));
-  return response;
-}
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [cookie, setCookie] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -86,15 +58,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   async function login(credentials: Credentials) {
-    const response = await post('auth', credentials);
-    const nextCookie = getCookie(response);
+    const { cookie: nextCookie } = await loginApi(credentials, cookie);
 
     await storeSession(nextCookie ?? 'managed-session');
     setCookie(nextCookie ?? 'managed-session');
   }
 
   async function createUser(user: NewUser) {
-    await post('create', user);
+    await register(user);
   }
 
   async function logout() {
