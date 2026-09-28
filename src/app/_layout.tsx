@@ -1,21 +1,19 @@
-import { DarkTheme, DefaultTheme, Redirect, Slot, ThemeProvider, usePathname } from 'expo-router';
-import * as SplashScreen from 'expo-splash-screen';
-import { useColorScheme } from 'react-native';
+import '@/global.css';
+import { Redirect, Slot, usePathname } from 'expo-router';
 
-import { AnimatedSplashOverlay } from '@/components/animated-icon';
 import AppTabs from '@/components/app-tabs';
 import { AuthProvider, useAuth } from '@/context/auth-context';
-
-SplashScreen.preventAutoHideAsync();
+import { NotesProvider } from '@/context/notes-context';
+import { TaskProvider } from '@/context/task-context';
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
   return (
     <AuthProvider>
-      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-        <AnimatedSplashOverlay />
-        <SessionGate />
-      </ThemeProvider>
+      <TaskProvider>
+        <NotesProvider>
+          <SessionGate />
+        </NotesProvider>
+      </TaskProvider>
     </AuthProvider>
   );
 }
