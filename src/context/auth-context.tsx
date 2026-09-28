@@ -54,6 +54,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     getStoredSession()
       .then(setCookie)
+      .catch(() => setCookie(null))
       .finally(() => setIsLoading(false));
   }, []);
 
