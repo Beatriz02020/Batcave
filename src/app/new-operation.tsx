@@ -23,7 +23,15 @@ export default function NewOperationScreen() {
   const [pickerMode, setPickerMode] = useState<'date' | 'time' | null>(null);
 
   useEffect(() => {
-    if (!editingTask) return;
+    if (!editingTask) {
+      setTitle('');
+      setDueDate('');
+      setDueTime('');
+      setPriority('PRIORIDADE MÉDIA');
+      setStatus('NÃO INICIADA');
+      setMessage('');
+      return;
+    }
     setTitle(editingTask.title);
     setDueDate(editingTask.dueDate);
     setDueTime(editingTask.dueTime);
@@ -133,7 +141,7 @@ function DateField({ label, value, mode, onChange, onOpen }: { label: string; va
   return (
     <View className="flex-1 gap-2">
       <Text className="font-mono text-xs tracking-[2px] text-bat-muted md:text-sm">{label}</Text>
-      <Pressable onPress={onOpen} className={inputClass}>
+      <Pressable onPress={onOpen} className={`${inputClass} justify-center`}>
         <Text className="text-base text-bat-text md:text-lg">{value || (mode === 'date' ? 'Selecionar data' : 'Selecionar hora')}</Text>
       </Pressable>
     </View>

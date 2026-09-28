@@ -1,4 +1,4 @@
-import { AudioModule, RecordingPresets, setAudioModeAsync, useAudioPlayer, useAudioRecorder, useAudioRecorderState } from 'expo-audio';
+import { AudioModule, RecordingPresets, setAudioModeAsync, useAudioPlayer, useAudioPlayerStatus, useAudioRecorder, useAudioRecorderState } from 'expo-audio';
 import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -10,19 +10,24 @@ type NoteItemProps = {
   text?: string;
   audioUri?: string;
   createdAt: string;
+  isDeleteMode: boolean;
   onPlay: () => void;
+  onDelete: () => void;
 };
 
 const inputClass = 'min-h-[58px] rounded-xl border-2 border-bat-border bg-bat-panel px-4 text-base text-bat-text';
 
 export default function NotesScreen() {
-  const { notes, addNote } = useNotes();
+  const { notes, addNote, deleteNote } = useNotes();
   const recorder = useAudioRecorder({ ...RecordingPresets.HIGH_QUALITY, directory: 'document' });
   const recorderState = useAudioRecorderState(recorder);
   const player = useAudioPlayer(null);
+  const playerStatus = useAudioPlayerStatus(player);
   const [title, setTitle] = useState('');
   const [text, setText] = useState('');
   const [message, setMessage] = useState('');
+  const [activeAudioUri, setActiveAudioUri] = useState<string | null>(null);
+  const [isDeleteMode, setIsDeleteMode] = useState(false);
 
   useEffect(() => {
     async function configureAudio() {
@@ -64,8 +69,24 @@ export default function NotesScreen() {
   }
 
   function playNote(uri: string) {
-    player.replace(uri);
+    if (activeAudioUri === uri && playerStatus.playing) {
+      player.pause();
+      return;
+    }
+    if (activeAudioUri !== uri) {
+      player.replace(uri);
+      setActiveAudioUri(uri);
+    }
     player.play();
+  }
+
+  function removeNote(id: string, audioUri?: string) {
+    if (audioUri && activeAudioUri === audioUri) {
+      player.pause();
+      setActiveAudioUri(null);
+    }
+    deleteNote(id);
+    if (notes.length === 1) setIsDeleteMode(false);
   }
 
   return (
@@ -95,10 +116,17 @@ export default function NotesScreen() {
           </View>
 
           <View className="mt-8 gap-3">
-            <Text className="font-mono text-xs tracking-[3px] text-bat-muted">ARQUIVO DE MEMÓRIA · {notes.length} NOTAS</Text>
+            <View className="flex-row items-center justify-between gap-3">
+              <Text className="flex-1 font-mono text-xs tracking-[3px] text-bat-muted">ARQUIVO DE MEMÓRIA · {notes.length} NOTAS</Text>
+              {notes.length > 0 && (
+                <Pressable accessibilityRole="button" accessibilityState={{ selected: isDeleteMode }} onPress={() => setIsDeleteMode((current) => !current)} className={`rounded-lg border px-3 py-2 ${isDeleteMode ? 'border-bat-border' : 'border-red-400'}`}>
+                  <Text className={`font-mono text-[10px] tracking-[1px] ${isDeleteMode ? 'text-bat-muted' : 'text-red-300'}`}>{isDeleteMode ? 'CANCELAR' : 'APAGAR'}</Text>
+                </Pressable>
+              )}
+            </View>
             {notes.length === 0 ? (
               <Text className="rounded-xl border border-dashed border-bat-border p-6 text-center text-sm text-bat-muted">Nenhuma anotação registrada.</Text>
-            ) : notes.map((note) => <NoteItem key={note.id} {...note} onPlay={() => note.audioUri && playNote(note.audioUri)} />)}
+            ) : notes.map((note) => <NoteItem key={note.id} {...note} isDeleteMode={isDeleteMode} isPlaying={note.audioUri === activeAudioUri && playerStatus.playing} onPlay={() => note.audioUri && playNote(note.audioUri)} onDelete={() => removeNote(note.id, note.audioUri)} />)}
           </View>
         </View>
       </ScrollView>
@@ -110,7 +138,7 @@ function Field({ label, ...props }: { label: string } & React.ComponentProps<typ
   return <View className="gap-2"><Text className="font-mono text-xs tracking-[2px] text-bat-muted">{label}</Text><TextInput {...props} placeholderTextColor="#777981" className={inputClass} /></View>;
 }
 
-function NoteItem({ title, text, audioUri, createdAt, onPlay }: NoteItemProps) {
+function NoteItem({ title, text, audioUri, createdAt, isDeleteMode, isPlaying, onPlay, onDelete }: NoteItemProps & { isPlaying: boolean }) {
   return (
     <View className="rounded-xl border-2 border-bat-border bg-bat-panel p-4">
       <View className="flex-row items-center justify-between gap-3">
@@ -118,7 +146,10 @@ function NoteItem({ title, text, audioUri, createdAt, onPlay }: NoteItemProps) {
         <Text className="font-mono text-[10px] text-bat-muted">{createdAt}</Text>
       </View>
       {text && <Text className="mt-3 text-sm leading-6 text-[#b2b3b8]">{text}</Text>}
-      {audioUri && <Pressable onPress={onPlay} className="mt-3 self-start rounded-lg border border-bat-gold px-3 py-2"><Text className="font-mono text-xs text-bat-gold">▶ REPRODUZIR ÁUDIO</Text></Pressable>}
+      <View className="mt-3 flex-row items-center justify-between gap-3">
+        {audioUri ? <Pressable onPress={onPlay} className="self-start rounded-lg border border-bat-gold px-3 py-2"><Text className="font-mono text-xs text-bat-gold">{isPlaying ? '⏸ PAUSAR ÁUDIO' : '▶ REPRODUZIR ÁUDIO'}</Text></Pressable> : <View />}
+        {isDeleteMode && <Pressable accessibilityRole="button" accessibilityLabel={`Apagar nota ${title}`} onPress={onDelete} className="self-start rounded-lg border border-red-400 px-3 py-2"><Text className="font-mono text-xs text-red-300">EXCLUIR NOTA</Text></Pressable>}
+      </View>
     </View>
   );
 }
