@@ -1,12 +1,20 @@
 import { router } from 'expo-router';
-import { ScrollView, Text, View } from 'react-native';
+import { useState } from 'react';
+import { Modal, Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { OperationCard } from '@/components/dashboard/operation-card';
 import { useTasks } from '@/context/task-context';
 
 export default function HomeScreen() {
-  const { tasks, activeTasks, completedTasks, progress } = useTasks();
+  const { tasks, activeTasks, completedTasks, progress, deleteTask } = useTasks();
+  const [taskToDelete, setTaskToDelete] = useState<{ id: string; title: string } | null>(null);
+
+  function confirmDelete() {
+    if (!taskToDelete) return;
+    deleteTask(taskToDelete.id);
+    setTaskToDelete(null);
+  }
 
   return (
     <SafeAreaView className="flex-1 bg-bat-bg">
@@ -39,10 +47,27 @@ export default function HomeScreen() {
 
           <Text className="mb-4 font-mono text-xs tracking-[3px] text-bat-muted sm:text-sm">TODAS AS OPERAÇÕES</Text>
           <View className="gap-4 md:flex-row md:flex-wrap">
-            {tasks.map((task) => <OperationCard key={task.id} {...task} onPress={() => router.push({ pathname: '/new-operation', params: { taskId: task.id } })} />)}
+            {tasks.map((task) => <OperationCard key={task.id} {...task} onPress={() => router.push({ pathname: '/new-operation', params: { taskId: task.id } })} onDelete={() => setTaskToDelete({ id: task.id, title: task.title })} />)}
           </View>
         </View>
       </ScrollView>
+      <Modal visible={taskToDelete !== null} transparent animationType="fade" onRequestClose={() => setTaskToDelete(null)}>
+        <View className="flex-1 items-center justify-center bg-black/70 px-5">
+          <View className="w-full max-w-[420px] gap-4 rounded-xl border-2 border-bat-border bg-bat-panel p-6">
+            <Text className="font-mono text-xs tracking-[2px] text-red-300">CONFIRMAR EXCLUSÃO</Text>
+            <Text className="text-lg font-bold text-bat-text">Excluir esta operação?</Text>
+            <Text className="text-sm leading-6 text-bat-muted">“{taskToDelete?.title}” será removida permanentemente.</Text>
+            <View className="mt-2 flex-row justify-end gap-3">
+              <Pressable accessibilityRole="button" onPress={() => setTaskToDelete(null)} className="rounded-lg border border-bat-border px-4 py-3">
+                <Text className="font-mono text-xs tracking-[1px] text-bat-muted">CANCELAR</Text>
+              </Pressable>
+              <Pressable accessibilityRole="button" onPress={confirmDelete} className="rounded-lg bg-red-500 px-4 py-3">
+                <Text className="font-mono text-xs font-bold tracking-[1px] text-white">EXCLUIR</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }

@@ -23,6 +23,7 @@ type TaskContextValue = {
   progress: number;
   addTask: (task: TaskInput) => void;
   updateTask: (id: string, task: TaskInput) => void;
+  deleteTask: (id: string) => void;
 };
 
 const initialTasks: Task[] = [];
@@ -65,11 +66,15 @@ export function TaskProvider({ children }: { children: ReactNode }) {
     setTasks((current) => current.map((item) => (item.id === id ? { ...task, id } : item)));
   }
 
+  function deleteTask(id: string) {
+    setTasks((current) => current.filter((task) => task.id !== id));
+  }
+
   const activeTasks = tasks.filter((task) => task.status !== 'CONCLUÍDA');
   const completedTasks = tasks.filter((task) => task.status === 'CONCLUÍDA');
   const progress = tasks.length === 0 ? 0 : Math.round(tasks.reduce((total, task) => total + statusProgress[task.status], 0) / tasks.length);
 
-  return <TaskContext.Provider value={{ tasks, activeTasks, completedTasks, progress, addTask, updateTask }}>{children}</TaskContext.Provider>;
+  return <TaskContext.Provider value={{ tasks, activeTasks, completedTasks, progress, addTask, updateTask, deleteTask }}>{children}</TaskContext.Provider>;
 }
 
 export function getTaskProgress(status: TaskStatus) {

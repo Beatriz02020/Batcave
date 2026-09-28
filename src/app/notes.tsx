@@ -1,6 +1,6 @@
 import { AudioModule, RecordingPresets, setAudioModeAsync, useAudioPlayer, useAudioPlayerStatus, useAudioRecorder, useAudioRecorderState } from 'expo-audio';
 import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useNotes } from '@/context/notes-context';
@@ -28,6 +28,7 @@ export default function NotesScreen() {
   const [message, setMessage] = useState('');
   const [activeAudioUri, setActiveAudioUri] = useState<string | null>(null);
   const [isDeleteMode, setIsDeleteMode] = useState(false);
+  const [noteToDelete, setNoteToDelete] = useState<{ id: string; title: string; audioUri?: string } | null>(null);
 
   useEffect(() => {
     async function configureAudio() {
@@ -89,6 +90,12 @@ export default function NotesScreen() {
     if (notes.length === 1) setIsDeleteMode(false);
   }
 
+  function confirmDeleteNote() {
+    if (!noteToDelete) return;
+    removeNote(noteToDelete.id, noteToDelete.audioUri);
+    setNoteToDelete(null);
+  }
+
   return (
     <SafeAreaView className="flex-1 bg-bat-bg">
       <ScrollView contentContainerClassName="flex-grow px-5 pb-24 pt-20 md:pl-[242px] md:pt-12">
@@ -126,10 +133,27 @@ export default function NotesScreen() {
             </View>
             {notes.length === 0 ? (
               <Text className="rounded-xl border border-dashed border-bat-border p-6 text-center text-sm text-bat-muted">Nenhuma anotação registrada.</Text>
-            ) : notes.map((note) => <NoteItem key={note.id} {...note} isDeleteMode={isDeleteMode} isPlaying={note.audioUri === activeAudioUri && playerStatus.playing} onPlay={() => note.audioUri && playNote(note.audioUri)} onDelete={() => removeNote(note.id, note.audioUri)} />)}
+            ) : notes.map((note) => <NoteItem key={note.id} {...note} isDeleteMode={isDeleteMode} isPlaying={note.audioUri === activeAudioUri && playerStatus.playing} onPlay={() => note.audioUri && playNote(note.audioUri)} onDelete={() => setNoteToDelete({ id: note.id, title: note.title, audioUri: note.audioUri })} />)}
           </View>
         </View>
       </ScrollView>
+      <Modal visible={noteToDelete !== null} transparent animationType="fade" onRequestClose={() => setNoteToDelete(null)}>
+        <View className="flex-1 items-center justify-center bg-black/70 px-5">
+          <View className="w-full max-w-[420px] gap-4 rounded-xl border-2 border-bat-border bg-bat-panel p-6">
+            <Text className="font-mono text-xs tracking-[2px] text-red-300">CONFIRMAR EXCLUSÃO</Text>
+            <Text className="text-lg font-bold text-bat-text">Excluir esta anotação?</Text>
+            <Text className="text-sm leading-6 text-bat-muted">“{noteToDelete?.title}” será removida permanentemente.</Text>
+            <View className="mt-2 flex-row justify-end gap-3">
+              <Pressable accessibilityRole="button" onPress={() => setNoteToDelete(null)} className="rounded-lg border border-bat-border px-4 py-3">
+                <Text className="font-mono text-xs tracking-[1px] text-bat-muted">CANCELAR</Text>
+              </Pressable>
+              <Pressable accessibilityRole="button" onPress={confirmDeleteNote} className="rounded-lg bg-red-500 px-4 py-3">
+                <Text className="font-mono text-xs font-bold tracking-[1px] text-white">EXCLUIR</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
