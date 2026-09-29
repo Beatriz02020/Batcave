@@ -2,20 +2,29 @@ import * as SecureStore from 'expo-secure-store';
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { Platform } from 'react-native';
 
+import { STORAGE_KEYS } from '@/constants/app-constants';
 import { login as loginApi, register } from '@/integration/auth-cookie-integration';
+import { getErrorMessage } from '@/utils/validation';
 
-const COOKIE_KEY = 'batcave.auth-cookie';
-
+/**
+ * Credenciais de usuário para login
+ */
 type Credentials = {
   username: string;
   password: string;
 };
 
+/**
+ * Dados de novo usuário para registro
+ */
 type NewUser = Credentials & {
   email: string;
   cep: string;
 };
 
+/**
+ * Contexto de autenticação
+ */
 type AuthContextValue = {
   cookie: string | null;
   isLoading: boolean;
@@ -26,49 +35,93 @@ type AuthContextValue = {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-async function getStoredSession() {
-  if (Platform.OS === 'web') return globalThis.localStorage.getItem(COOKIE_KEY);
-  return SecureStore.getItemAsync(COOKIE_KEY);
+/**
+ * Obtém a sessão armazenada (web ou nativa)
+ */
+async function getStoredSession(): Promise<string | null> {
+  try {
+    if (Platform.OS === 'web') {
+      return globalThis.localStorage?.getItem(STORAGE_KEYS.AUTH_COOKIE) ?? null;
+    }
+    return await SecureStore.getItemAsync(STORAGE_KEYS.AUTH_COOKIE);
+  } catch (error) {
+    console.warn('Erro ao recuperar sessão:', getErrorMessage(error));
+    return null;
+  }
 }
 
-async function storeSession(value: string) {
-  if (Platform.OS === 'web') {
-    globalThis.localStorage.setItem(COOKIE_KEY, value);
-    return;
+/**
+ * Armazena a sessão (web ou nativa)
+ */
+async function storeSession(value: string): Promise<void> {
+  try {
+    if (Platform.OS === 'web') {
+      globalThis.localStorage?.setItem(STORAGE_KEYS.AUTH_COOKIE, value);
+      return;
+    }
+    await SecureStore.setItemAsync(STORAGE_KEYS.AUTH_COOKIE, value);
+  } catch (error) {
+    console.warn('Erro ao armazenar sessão:', getErrorMessage(error));
   }
-  await SecureStore.setItemAsync(COOKIE_KEY, value);
 }
 
-async function removeStoredSession() {
-  if (Platform.OS === 'web') {
-    globalThis.localStorage.removeItem(COOKIE_KEY);
-    return;
+/**
+ * Remove a sessão armazenada
+ */
+async function removeStoredSession(): Promise<void> {
+  try {
+    if (Platform.OS === 'web') {
+      globalThis.localStorage?.removeItem(STORAGE_KEYS.AUTH_COOKIE);
+      return;
+    }
+    await SecureStore.deleteItemAsync(STORAGE_KEYS.AUTH_COOKIE);
+  } catch (error) {
+    console.warn('Erro ao remover sessão:', getErrorMessage(error));
   }
-  await SecureStore.deleteItemAsync(COOKIE_KEY);
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [cookie, setCookie] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  /**
+   * Carrega a sessão do storage na inicialização
+   */
   useEffect(() => {
     getStoredSession()
       .then(setCookie)
-      .catch(() => setCookie(null))
+      .catch(() => {
+        console.warn('Falha ao recuperar sessão armazenada');
+        setCookie(null);
+      })
       .finally(() => setIsLoading(false));
   }, []);
 
+  /**
+   * Faz login com credenciais
+   */
   async function login(credentials: Credentials) {
-    const { cookie: nextCookie } = await loginApi(credentials, cookie);
-
-    await storeSession(nextCookie ?? 'managed-session');
-    setCookie(nextCookie ?? 'managed-session');
+    try {
+      const { cookie: nextCookie } = await loginApi(credentials, cookie);
+      const sessionCookie = nextCookie ?? 'managed-session';
+      await storeSession(sessionCookie);
+      setCookie(sessionCookie);
+    } catch (error) {
+      setCookie(null);
+      throw error;
+    }
   }
 
+  /**
+   * Cria um novo usuário
+   */
   async function createUser(user: NewUser) {
-    await register(user);
+    return register(user);
   }
 
+  /**
+   * Faz logout e limpa a sessão
+   */
   async function logout() {
     await removeStoredSession();
     setCookie(null);
@@ -81,8 +134,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 }
 
+/**
+ * Hook para usar autenticação
+ * @throws Erro se usado fora de AuthProvider
+ */
 export function useAuth() {
   const value = useContext(AuthContext);
-  if (!value) throw new Error('useAuth deve ser usado dentro de AuthProvider.');
+  if (!value) {
+    throw new Error('useAuth deve ser usado dentro de AuthProvider.');
+  }
   return value;
 }

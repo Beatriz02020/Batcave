@@ -1,45 +1,83 @@
 import { Platform } from 'react-native';
 
-const API_URL = 'https://login-p26w.onrender.com/fatec/login/v1';
+import { API_CONFIG, ERROR_MESSAGES } from '@/constants/app-constants';
+import { getErrorMessage } from '@/utils/validation';
 
-type ApiError = {
-  message?: string;
-  error?: string;
-};
-
+/**
+ * Resposta da API com cookie extraído
+ */
 export type ApiResponse = {
   response: Response;
   cookie: string | null;
 };
 
-function getCookie(response: Response) {
+/**
+ * Extrai o cookie da resposta HTTP
+ */
+function getCookie(response: Response): string | null {
   const setCookie = response.headers.get('set-cookie');
   return setCookie?.match(/^([^=;]+=[^;]+)/)?.[1] ?? null;
 }
 
-async function getErrorMessage(response: Response) {
-  const body = await response.text();
-  if (!body) return `Não foi possível concluir a operação (${response.status}).`;
-
+/**
+ * Extrai mensagem de erro da resposta
+ */
+async function getErrorMessage(response: Response): Promise<string> {
   try {
-    const parsed = JSON.parse(body) as ApiError;
-    return parsed.message ?? parsed.error ?? body;
+    const body = await response.text();
+    if (!body) return `${ERROR_MESSAGES.OPERATION_FAILED} (${response.status}).`;
+
+    try {
+      const parsed = JSON.parse(body) as { message?: string; error?: string };
+      return parsed.message ?? parsed.error ?? body;
+    } catch {
+      return body;
+    }
   } catch {
-    return body;
+    return ERROR_MESSAGES.OPERATION_FAILED;
   }
 }
 
-export async function postCookie(path: string, payload?: object, cookie?: string | null): Promise<ApiResponse> {
+/**
+ * Faz requisição POST com cookie (cross-platform)
+ * @param path - Endpoint da API
+ * @param payload - Dados a enviar
+ * @param cookie - Cookie da sessão anterior
+ */
+export async function postCookie(
+  path: string,
+  payload?: object,
+  cookie?: string | null,
+): Promise<ApiResponse> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (Platform.OS !== 'web' && cookie) headers.Cookie = cookie;
 
-  const response = await fetch(`${API_URL}/${path}`, {
-    method: 'POST',
-    headers,
-    credentials: 'include',
-    body: payload ? JSON.stringify(payload) : undefined,
-  });
+  // Em nativo, adiciona o cookie manualmente (fetch não suporta automaticamente)
+  if (Platform.OS !== 'web' && cookie) {
+    headers.Cookie = cookie;
+  }
 
-  if (!response.ok) throw new Error(await getErrorMessage(response));
-  return { response, cookie: getCookie(response) };
+  try {
+    const response = await fetch(`${API_CONFIG.BASE_URL}/${path}`, {
+      method: 'POST',
+      headers,
+      credentials: 'include', // Web envia cookies automaticamente
+      body: payload ? JSON.stringify(payload) : undefined,
+    });
+
+    if (!response.ok) {
+      const errorMsg = await getErrorMessage(response);
+      throw new Error(errorMsg);
+    }
+
+    return {
+      response,
+      cookie: getCookie(response),
+    };
+  } catch (error) {
+    // Detecta erro de rede vs erro da API
+    if (error instanceof TypeError && error.message.includes('Network')) {
+      throw new Error(ERROR_MESSAGES.NETWORK_ERROR);
+    }
+    throw error;
+  }
 }

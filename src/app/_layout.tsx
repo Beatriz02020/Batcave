@@ -1,12 +1,14 @@
 import '@/global.css';
-import { Redirect, Slot, usePathname } from 'expo-router';
+import { Redirect, Stack, useSegments } from 'expo-router';
 
-import AppTabs from '@/components/app-tabs';
 import { AuthProvider, useAuth } from '@/context/auth-context';
 import { NotesProvider } from '@/context/notes-context';
 import { TaskProvider } from '@/context/task-context';
 
-export default function TabLayout() {
+/**
+ * Layout raiz com providers e proteção de rotas
+ */
+export default function RootLayout() {
   return (
     <AuthProvider>
       <TaskProvider>
@@ -18,14 +20,39 @@ export default function TabLayout() {
   );
 }
 
+/**
+ * Componente que gerencia redirecionamentos baseado em autenticação
+ * Usa route groups: (auth) para login/cadastro, (app) para aplicação
+ */
 function SessionGate() {
-  const pathname = usePathname();
+  const segments = useSegments();
   const { cookie, isLoading } = useAuth();
-  const isAuthRoute = pathname === '/login' || pathname === '/cadastro';
 
-  if (isLoading) return null;
-  if (!cookie && !isAuthRoute) return <Redirect href="/login" />;
-  if (cookie && isAuthRoute) return <Redirect href="/" />;
+  if (isLoading) {
+    return null;
+  }
 
-  return isAuthRoute ? <Slot /> : <AppTabs />;
+  // Verifica se o usuário está tentando acessar rota autenticada sem estar logado
+  const isInAuthGroup = segments[0] === '(auth)';
+  const isInAppGroup = segments[0] === '(app)';
+
+  if (!cookie && !isInAuthGroup) {
+    return <Redirect href="/(auth)/login" />;
+  }
+
+  if (cookie && isInAuthGroup) {
+    return <Redirect href="/(app)" />;
+  }
+
+  return (
+    <Stack
+      screenOptions={{
+        headerShown: false,
+      }}
+    >
+      <Stack.Screen name="(auth)" options={{ title: 'Auth' }} />
+      <Stack.Screen name="(app)" options={{ title: 'App' }} />
+    </Stack>
+  );
+}
 }

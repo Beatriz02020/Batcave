@@ -1,6 +1,10 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 
+
+/**
+ * Nota com áudio e texto
+ */
 type Note = {
   id: string;
   title: string;
@@ -9,6 +13,9 @@ type Note = {
   createdAt: string;
 };
 
+/**
+ * Contexto de notas
+ */
 type NotesContextValue = {
   notes: Note[];
   addNote: (note: Omit<Note, 'id' | 'createdAt'>) => void;
@@ -16,36 +23,53 @@ type NotesContextValue = {
 };
 
 const NotesContext = createContext<NotesContextValue | null>(null);
-const NOTES_STORAGE_KEY = 'batcave.notes';
 
 export function NotesProvider({ children }: { children: ReactNode }) {
   const [notes, setNotes] = useState<Note[]>([]);
   const [hydrated, setHydrated] = useState(false);
 
+  /**
+   * Carrega notas do AsyncStorage na inicialização
+   */
   useEffect(() => {
-    AsyncStorage.getItem(NOTES_STORAGE_KEY)
+    AsyncStorage.getItem(STORAGE_KEYS.NOTES)
       .then((stored) => {
-        if (stored) setNotes(JSON.parse(stored) as Note[]);
+        if (stored) {
+          setNotes(JSON.parse(stored) as Note[]);
+        }
       })
-      .catch(() => undefined)
+      .catch(() => {
+        console.warn('Erro ao carregar notas do AsyncStorage');
+      })
       .finally(() => setHydrated(true));
   }, []);
 
+  /**
+   * Persiste notas sempre que mudam (após hidratação)
+   */
   useEffect(() => {
-    if (hydrated) void AsyncStorage.setItem(NOTES_STORAGE_KEY, JSON.stringify(notes));
+    if (hydrated) {
+      void AsyncStorage.setItem(STORAGE_KEYS.NOTES, JSON.stringify(notes));
+    }
   }, [hydrated, notes]);
 
+  /**
+   * Adiciona uma nova nota com ID gerado
+   */
   function addNote(note: Omit<Note, 'id' | 'createdAt'>) {
     setNotes((current) => [
       {
         ...note,
-        id: `${Date.now()}-${note.title}`,
+        id: generateId('note'),
         createdAt: new Date().toLocaleString('pt-BR'),
       },
       ...current,
     ]);
   }
 
+  /**
+   * Deleta uma nota por ID
+   */
   function deleteNote(id: string) {
     setNotes((current) => current.filter((note) => note.id !== id));
   }
@@ -53,8 +77,14 @@ export function NotesProvider({ children }: { children: ReactNode }) {
   return <NotesContext.Provider value={{ notes, addNote, deleteNote }}>{children}</NotesContext.Provider>;
 }
 
+/**
+ * Hook para usar o contexto de notas
+ * @throws Erro se usado fora de NotesProvider
+ */
 export function useNotes() {
   const value = useContext(NotesContext);
-  if (!value) throw new Error('useNotes deve ser usado dentro de NotesProvider.');
+  if (!value) {
+    throw new Error('useNotes deve ser usado dentro de NotesProvider.');
+  }
   return value;
 }
