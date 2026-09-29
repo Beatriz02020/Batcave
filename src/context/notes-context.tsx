@@ -1,6 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 
+import { STORAGE_KEYS } from '@/constants/app-constants';
+import { generateId } from '@/utils/validation';
 
 /**
  * Nota com áudio e texto
