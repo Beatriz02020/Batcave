@@ -116,7 +116,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
    * Cria um novo usuário
    */
   async function createUser(user: NewUser) {
-    return register(user);
+    await register(user);
   }
 
   /**
